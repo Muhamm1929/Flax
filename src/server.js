@@ -14,7 +14,26 @@ const SOCIAL_ORIGIN = process.env.SOCIAL_ORIGIN || '*';
 const ADMIN_ORIGIN = process.env.ADMIN_ORIGIN || '*';
 const TOKEN_SECRET = process.env.TOKEN_SECRET || 'change-me-token-secret';
 
+
+function applySecurityHeaders(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';");
+}
+
+function shouldForceHttps(req) {
+  const host = req.headers.host || '';
+  if (host.startsWith('localhost') || host.startsWith('127.0.0.1')) return false;
+  const proto = req.headers['x-forwarded-proto'];
+  return proto && proto !== 'https';
+}
+
 function json(res, statusCode, payload, origin = '*') {
+  applySecurityHeaders(res);
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': origin,
@@ -142,6 +161,7 @@ function serveStatic(reqPath, res, origin) {
     '.js': 'application/javascript; charset=utf-8'
   };
 
+  applySecurityHeaders(res);
   res.writeHead(200, {
     'Content-Type': types[ext] || 'application/octet-stream',
     'Access-Control-Allow-Origin': origin
@@ -569,9 +589,17 @@ async function handleApi(req, res, origin) {
 }
 
 async function requestHandler(req, res) {
+  if (shouldForceHttps(req)) {
+    const host = req.headers.host;
+    res.writeHead(301, { Location: `https://${host}${req.url}` });
+    res.end();
+    return;
+  }
+
   const origin = setCors(req);
 
   if (req.method === 'OPTIONS') {
+    applySecurityHeaders(res);
     res.writeHead(204, {
       'Access-Control-Allow-Origin': origin || 'null',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-password',
