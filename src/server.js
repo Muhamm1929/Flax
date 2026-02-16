@@ -84,13 +84,9 @@ function roleForUser(user, store) {
 
 function serveStatic(reqPath, res, origin) {
   let filePath;
-  if (reqPath.startsWith('/social')) {
-    filePath = path.join(__dirname, '..', 'public', reqPath);
-  } else if (reqPath.startsWith('/admin')) {
-    filePath = path.join(__dirname, '..', 'public', reqPath);
-  } else {
-    return false;
-  }
+  if (reqPath.startsWith('/social')) filePath = path.join(__dirname, '..', 'public', reqPath);
+  else if (reqPath.startsWith('/admin')) filePath = path.join(__dirname, '..', 'public', reqPath);
+  else return false;
 
   if (reqPath === '/social' || reqPath === '/admin') {
     filePath = path.join(__dirname, '..', 'public', reqPath.slice(1), 'index.html');
@@ -120,19 +116,18 @@ function ensureBootstrapState() {
     store.settings.adminPasswordHash = hashPassword(DEFAULT_ADMIN_PASSWORD);
   }
 
-  if (!Array.isArray(store.messages)) {
-    store.messages = [];
-  }
+  if (!Array.isArray(store.messages)) store.messages = [];
 
   for (const user of store.users) {
     if (!Array.isArray(user.classIds)) user.classIds = [];
     if (!Array.isArray(user.likedBy)) user.likedBy = [];
     if (typeof user.messages !== 'number') user.messages = 0;
     if (typeof user.friends !== 'number') user.friends = 0;
+    if (!user.activeClassId) user.activeClassId = user.classIds[0] || null;
   }
 
   if (store.classes.length === 0) {
-    store.classes.push({ id: crypto.randomUUID(), name: 'Class A', code: '11111', enabled: true });
+    store.classes.push({ id: crypto.randomUUID(), name: '8B', code: '11111', enabled: true });
   }
 
   saveStore(store);
@@ -153,27 +148,31 @@ function getUserByToken(store, req) {
   return store.users.find((item) => item.id === session.userId) || null;
 }
 
+function ensureActiveClass(user, store) {
+  if (user.activeClassId && user.classIds.includes(user.activeClassId)) return user.activeClassId;
+  const existing = user.classIds.find((classId) => store.classes.some((c) => c.id === classId));
+  user.activeClassId = existing || null;
+  return user.activeClassId;
+}
+
 async function handleApi(req, res, origin) {
   const reqPath = new URL(req.url, `http://${req.headers.host}`).pathname;
 
   if (req.method === 'POST' && reqPath === '/api/auth/register') {
-    const { name, username, password, classCode } = await parseBody(req);
-    if (!name || !username || !password || !classCode) return json(res, 400, { error: 'name, username, password, classCode are required' }, origin);
-    if (!/^\d{5}$/.test(String(classCode))) return json(res, 400, { error: 'Class code must be 5 digits' }, origin);
+    const { name, username, password } = await parseBody(req);
+    if (!name || !username || !password) return json(res, 400, { error: 'name, username, password are required' }, origin);
 
     const store = loadStore();
     const normalized = username.toLowerCase();
     if (store.users.some((user) => user.username.toLowerCase() === normalized)) return json(res, 400, { error: 'Username already exists' }, origin);
-
-    const classItem = store.classes.find((item) => item.code === String(classCode));
-    if (!classItem || !classItem.enabled) return json(res, 400, { error: 'Class is disabled or does not exist' }, origin);
 
     const user = {
       id: create7DigitId(store),
       name,
       username,
       passwordHash: hashPassword(password),
-      classIds: [classItem.id],
+      classIds: [],
+      activeClassId: null,
       likedBy: [],
       friends: 0,
       messages: 0,
@@ -200,14 +199,133 @@ async function handleApi(req, res, origin) {
     const token = createToken();
     store.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() });
     saveStore(store);
-    return json(res, 200, { token }, origin);
+    return json(res, 200, { token });
   }
 
-  if (req.method === 'GET' && reqPath === '/api/me') {
+  if (req.method === 'POST' && reqPath === '/api/admin/login') {
+    const { password } = await parseBody(req);
     const store = loadStore();
-    const user = getUserByToken(store, req);
-    if (!user) return json(res, 401, { error: 'Invalid token' }, origin);
+    if (!verifyPassword(password, store.settings.adminPasswordHash)) return json(res, 401, { error: 'Invalid admin password' }, origin);
+    return json(res, 200, { ok: true }, origin);
+  }
 
+  if (reqPath.startsWith('/api/admin/')) {
+    const store = loadStore();
+    if (!isAdminAuthorized(req, store)) return json(res, 401, { error: 'Invalid admin password' }, origin);
+
+    if (req.method === 'POST' && reqPath === '/api/admin/change-password') {
+      const { currentPassword, newPassword } = await parseBody(req);
+      if (!currentPassword || !newPassword) return json(res, 400, { error: 'currentPassword and newPassword are required' }, origin);
+      if (!/^\d{5}$/.test(String(newPassword))) return json(res, 400, { error: 'newPassword must be 5 digits' }, origin);
+      if (!verifyPassword(currentPassword, store.settings.adminPasswordHash)) return json(res, 401, { error: 'Current password is incorrect' }, origin);
+
+      store.settings.adminPasswordHash = hashPassword(String(newPassword));
+      saveStore(store);
+      return json(res, 200, { message: 'Admin password updated' }, origin);
+    }
+
+    if (req.method === 'GET' && reqPath === '/api/admin/users') {
+      const users = store.users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        classIds: u.classIds,
+        role: u.role,
+        likes: (u.likedBy || []).length,
+        friends: u.friends,
+        messages: u.messages
+      }));
+      return json(res, 200, users, origin);
+    }
+
+    if (req.method === 'PATCH' && reqPath.match(/^\/api\/admin\/users\/[^/]+\/status$/)) {
+      const id = reqPath.split('/')[4];
+      const { role } = await parseBody(req);
+      if (!['USER', 'DEV'].includes(role)) return json(res, 400, { error: 'role must be USER or DEV' }, origin);
+
+      const user = store.users.find((u) => u.id === id);
+      if (!user) return json(res, 404, { error: 'User not found' }, origin);
+      user.role = role;
+      saveStore(store);
+      return json(res, 200, { message: 'Status updated' }, origin);
+    }
+
+    if (req.method === 'DELETE' && reqPath.match(/^\/api\/admin\/users\/[^/]+$/)) {
+      const id = reqPath.split('/')[4];
+      const len = store.users.length;
+      store.users = store.users.filter((u) => u.id !== id);
+      store.sessions = store.sessions.filter((s) => s.userId !== id);
+      store.loginPodiumOrder = store.loginPodiumOrder.filter((userId) => userId !== id);
+      store.messages = store.messages.filter((m) => m.authorId !== id);
+      for (const user of store.users) {
+        user.likedBy = (user.likedBy || []).filter((likerId) => likerId !== id);
+      }
+      if (store.users.length === len) return json(res, 404, { error: 'User not found' }, origin);
+      saveStore(store);
+      return json(res, 200, { message: 'User deleted' }, origin);
+    }
+
+    if (req.method === 'GET' && reqPath === '/api/admin/classes') {
+      return json(res, 200, store.classes, origin);
+    }
+
+    if (req.method === 'POST' && reqPath === '/api/admin/classes') {
+      const { name, code } = await parseBody(req);
+      if (!name || !code || !/^\d{5}$/.test(String(code))) return json(res, 400, { error: 'name and 5-digit code are required' }, origin);
+      if (store.classes.some((c) => c.code === String(code))) return json(res, 400, { error: 'Class code already exists' }, origin);
+      const classItem = { id: crypto.randomUUID(), name, code: String(code), enabled: true };
+      store.classes.push(classItem);
+      saveStore(store);
+      return json(res, 201, classItem, origin);
+    }
+
+    if (req.method === 'PATCH' && reqPath.match(/^\/api\/admin\/classes\/[^/]+$/)) {
+      const id = reqPath.split('/')[4];
+      const { name, code, enabled } = await parseBody(req);
+      const classItem = store.classes.find((c) => c.id === id);
+      if (!classItem) return json(res, 404, { error: 'Class not found' }, origin);
+
+      if (code !== undefined) {
+        if (!/^\d{5}$/.test(String(code))) return json(res, 400, { error: 'code must be 5 digits' }, origin);
+        if (store.classes.some((c) => c.id !== id && c.code === String(code))) return json(res, 400, { error: 'Class code already used' }, origin);
+        classItem.code = String(code);
+      }
+      if (name !== undefined) classItem.name = name;
+      if (enabled !== undefined) classItem.enabled = Boolean(enabled);
+      saveStore(store);
+      return json(res, 200, classItem, origin);
+    }
+
+    if (req.method === 'DELETE' && reqPath.match(/^\/api\/admin\/classes\/[^/]+$/)) {
+      const id = reqPath.split('/')[4];
+      const before = store.classes.length;
+      store.classes = store.classes.filter((item) => item.id !== id);
+      if (store.classes.length === before) return json(res, 404, { error: 'Class not found' }, origin);
+
+      for (const user of store.users) {
+        user.classIds = (user.classIds || []).filter((classId) => classId !== id);
+        if (user.activeClassId === id) user.activeClassId = user.classIds[0] || null;
+      }
+      store.messages = (store.messages || []).filter((m) => m.classId !== id);
+
+      saveStore(store);
+      return json(res, 200, { message: 'Class deleted' }, origin);
+    }
+
+    return false;
+  }
+
+  if (!reqPath.startsWith('/api/')) return false;
+
+  const store = loadStore();
+  const user = getUserByToken(store, req);
+  if (!user) return json(res, 401, { error: 'Invalid token' }, origin);
+
+  ensureActiveClass(user, store);
+
+  if (req.method === 'GET' && reqPath === '/api/me') {
+    const activeClass = store.classes.find((c) => c.id === user.activeClassId) || null;
+    saveStore(store);
     return json(
       res,
       200,
@@ -218,20 +336,55 @@ async function handleApi(req, res, origin) {
         likes: (user.likedBy || []).length,
         friends: user.friends,
         messages: user.messages,
-        role: roleForUser(user, store)
+        role: roleForUser(user, store),
+        activeClass,
+        hasJoinedClass: Boolean(user.activeClassId)
       },
       origin
     );
   }
 
-  if (req.method === 'GET' && reqPath === '/api/classmates') {
-    const store = loadStore();
-    const user = getUserByToken(store, req);
-    if (!user) return json(res, 401, { error: 'Invalid token' }, origin);
+  if (req.method === 'GET' && reqPath === '/api/classes') {
+    const enabledClasses = store.classes
+      .filter((c) => c.enabled)
+      .map((c) => ({ id: c.id, name: c.name, enabled: c.enabled, joined: user.classIds.includes(c.id) }));
+    return json(res, 200, enabledClasses, origin);
+  }
 
-    const classId = user.classIds[0];
+  if (req.method === 'POST' && reqPath === '/api/join-class') {
+    const { classId, code } = await parseBody(req);
+    if (!classId || !code) return json(res, 400, { error: 'classId and code are required' }, origin);
+
+    const classItem = store.classes.find((c) => c.id === classId && c.enabled);
+    if (!classItem) return json(res, 404, { error: 'Class not found or disabled' }, origin);
+    if (classItem.code !== String(code)) return json(res, 401, { error: 'Неверный пароль класса' }, origin);
+
+    if (!user.classIds.includes(classId)) user.classIds.push(classId);
+    user.activeClassId = classId;
+    saveStore(store);
+    return json(res, 200, { message: 'Class joined', activeClass: { id: classItem.id, name: classItem.name } }, origin);
+  }
+
+  if (req.method === 'POST' && reqPath === '/api/select-class') {
+    const { classId } = await parseBody(req);
+    if (!classId) return json(res, 400, { error: 'classId is required' }, origin);
+    if (!user.classIds.includes(classId)) return json(res, 403, { error: 'You are not a member of this class' }, origin);
+
+    const classItem = store.classes.find((c) => c.id === classId && c.enabled);
+    if (!classItem) return json(res, 404, { error: 'Class not found or disabled' }, origin);
+
+    user.activeClassId = classId;
+    saveStore(store);
+    return json(res, 200, { message: 'Class selected', activeClass: { id: classItem.id, name: classItem.name } }, origin);
+  }
+
+  if (!user.activeClassId) {
+    return json(res, 400, { error: 'Сначала выбери класс и введи пароль класса' }, origin);
+  }
+
+  if (req.method === 'GET' && reqPath === '/api/classmates') {
     const classmates = store.users
-      .filter((item) => item.classIds.includes(classId))
+      .filter((item) => item.classIds.includes(user.activeClassId))
       .map((item) => ({
         id: item.id,
         name: item.name,
@@ -244,51 +397,41 @@ async function handleApi(req, res, origin) {
   }
 
   if (req.method === 'POST' && reqPath.match(/^\/api\/users\/[^/]+\/like$/)) {
-    const store = loadStore();
-    const currentUser = getUserByToken(store, req);
-    if (!currentUser) return json(res, 401, { error: 'Invalid token' }, origin);
-
     const targetId = reqPath.split('/')[3];
-    if (targetId === currentUser.id) return json(res, 400, { error: 'Cannot like yourself' }, origin);
+    if (targetId === user.id) return json(res, 400, { error: 'Cannot like yourself' }, origin);
 
     const target = store.users.find((item) => item.id === targetId);
-    if (!target) return json(res, 404, { error: 'User not found' }, origin);
+    if (!target || !target.classIds.includes(user.activeClassId)) return json(res, 404, { error: 'User not found in your class' }, origin);
 
     if (!Array.isArray(target.likedBy)) target.likedBy = [];
 
-    if (target.likedBy.includes(currentUser.id)) {
-      target.likedBy = target.likedBy.filter((id) => id !== currentUser.id);
+    if (target.likedBy.includes(user.id)) {
+      target.likedBy = target.likedBy.filter((id) => id !== user.id);
     } else {
-      target.likedBy.push(currentUser.id);
+      target.likedBy.push(user.id);
     }
 
     saveStore(store);
-    return json(res, 200, { likes: target.likedBy.length, likedByMe: target.likedBy.includes(currentUser.id) }, origin);
+    return json(res, 200, { likes: target.likedBy.length, likedByMe: target.likedBy.includes(user.id) }, origin);
   }
 
   if (req.method === 'GET' && reqPath === '/api/messages') {
-    const store = loadStore();
-    const user = getUserByToken(store, req);
-    if (!user) return json(res, 401, { error: 'Invalid token' }, origin);
-
-    const classId = user.classIds[0];
     const messages = (store.messages || [])
-      .filter((item) => item.classId === classId)
+      .filter((item) => item.classId === user.activeClassId)
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
-      .map((item) => ({
-        id: item.id,
-        text: item.text,
-        createdAt: item.createdAt,
-        likes: (item.likedBy || []).length,
-        likedByMe: (item.likedBy || []).includes(user.id),
-        author: store.users.find((u) => u.id === item.authorId)
-          ? {
-              id: item.authorId,
-              name: store.users.find((u) => u.id === item.authorId).name,
-              username: store.users.find((u) => u.id === item.authorId).username
-            }
-          : { id: item.authorId, name: 'Unknown', username: 'unknown' }
-      }));
+      .map((item) => {
+        const author = store.users.find((u) => u.id === item.authorId);
+        return {
+          id: item.id,
+          text: item.text,
+          createdAt: item.createdAt,
+          likes: (item.likedBy || []).length,
+          likedByMe: (item.likedBy || []).includes(user.id),
+          author: author
+            ? { id: author.id, name: author.name, username: author.username }
+            : { id: item.authorId, name: 'Unknown', username: 'unknown' }
+        };
+      });
 
     return json(res, 200, messages, origin);
   }
@@ -297,14 +440,9 @@ async function handleApi(req, res, origin) {
     const { text } = await parseBody(req);
     if (!text || !String(text).trim()) return json(res, 400, { error: 'text is required' }, origin);
 
-    const store = loadStore();
-    const user = getUserByToken(store, req);
-    if (!user) return json(res, 401, { error: 'Invalid token' }, origin);
-
-    const classId = user.classIds[0];
     const message = {
       id: crypto.randomUUID(),
-      classId,
+      classId: user.activeClassId,
       authorId: user.id,
       text: String(text).trim().slice(0, 500),
       likedBy: [],
@@ -319,12 +457,8 @@ async function handleApi(req, res, origin) {
   }
 
   if (req.method === 'POST' && reqPath.match(/^\/api\/messages\/[^/]+\/like$/)) {
-    const store = loadStore();
-    const user = getUserByToken(store, req);
-    if (!user) return json(res, 401, { error: 'Invalid token' }, origin);
-
     const messageId = reqPath.split('/')[3];
-    const message = store.messages.find((item) => item.id === messageId);
+    const message = store.messages.find((item) => item.id === messageId && item.classId === user.activeClassId);
     if (!message) return json(res, 404, { error: 'Message not found' }, origin);
 
     if (!Array.isArray(message.likedBy)) message.likedBy = [];
@@ -337,116 +471,6 @@ async function handleApi(req, res, origin) {
 
     saveStore(store);
     return json(res, 200, { likes: message.likedBy.length, likedByMe: message.likedBy.includes(user.id) }, origin);
-  }
-
-  if (req.method === 'POST' && reqPath === '/api/admin/login') {
-    const { password } = await parseBody(req);
-    const store = loadStore();
-    if (!verifyPassword(password, store.settings.adminPasswordHash)) return json(res, 401, { error: 'Invalid admin password' }, origin);
-    return json(res, 200, { ok: true }, origin);
-  }
-
-  if (!reqPath.startsWith('/api/admin/')) return false;
-
-  const store = loadStore();
-  if (!isAdminAuthorized(req, store)) return json(res, 401, { error: 'Invalid admin password' }, origin);
-
-  if (req.method === 'POST' && reqPath === '/api/admin/change-password') {
-    const { currentPassword, newPassword } = await parseBody(req);
-    if (!currentPassword || !newPassword) return json(res, 400, { error: 'currentPassword and newPassword are required' }, origin);
-    if (!/^\d{5}$/.test(String(newPassword))) return json(res, 400, { error: 'newPassword must be 5 digits' }, origin);
-    if (!verifyPassword(currentPassword, store.settings.adminPasswordHash)) return json(res, 401, { error: 'Current password is incorrect' }, origin);
-
-    store.settings.adminPasswordHash = hashPassword(String(newPassword));
-    saveStore(store);
-    return json(res, 200, { message: 'Admin password updated' }, origin);
-  }
-
-  if (req.method === 'GET' && reqPath === '/api/admin/users') {
-    const users = store.users.map((u) => ({
-      id: u.id,
-      name: u.name,
-      username: u.username,
-      classIds: u.classIds,
-      role: u.role,
-      likes: (u.likedBy || []).length,
-      friends: u.friends,
-      messages: u.messages
-    }));
-    return json(res, 200, users, origin);
-  }
-
-  if (req.method === 'PATCH' && reqPath.match(/^\/api\/admin\/users\/[^/]+\/status$/)) {
-    const id = reqPath.split('/')[4];
-    const { role } = await parseBody(req);
-    if (!['USER', 'DEV'].includes(role)) return json(res, 400, { error: 'role must be USER or DEV' }, origin);
-
-    const user = store.users.find((u) => u.id === id);
-    if (!user) return json(res, 404, { error: 'User not found' }, origin);
-    user.role = role;
-    saveStore(store);
-    return json(res, 200, { message: 'Status updated' }, origin);
-  }
-
-  if (req.method === 'DELETE' && reqPath.match(/^\/api\/admin\/users\/[^/]+$/)) {
-    const id = reqPath.split('/')[4];
-    const len = store.users.length;
-    store.users = store.users.filter((u) => u.id !== id);
-    store.sessions = store.sessions.filter((s) => s.userId !== id);
-    store.loginPodiumOrder = store.loginPodiumOrder.filter((userId) => userId !== id);
-    store.messages = store.messages.filter((m) => m.authorId !== id);
-    for (const user of store.users) {
-      user.likedBy = (user.likedBy || []).filter((likerId) => likerId !== id);
-    }
-    if (store.users.length === len) return json(res, 404, { error: 'User not found' }, origin);
-    saveStore(store);
-    return json(res, 200, { message: 'User deleted' }, origin);
-  }
-
-  if (req.method === 'GET' && reqPath === '/api/admin/classes') {
-    return json(res, 200, store.classes, origin);
-  }
-
-  if (req.method === 'POST' && reqPath === '/api/admin/classes') {
-    const { name, code } = await parseBody(req);
-    if (!name || !code || !/^\d{5}$/.test(String(code))) return json(res, 400, { error: 'name and 5-digit code are required' }, origin);
-    if (store.classes.some((c) => c.code === String(code))) return json(res, 400, { error: 'Class code already exists' }, origin);
-    const classItem = { id: crypto.randomUUID(), name, code: String(code), enabled: true };
-    store.classes.push(classItem);
-    saveStore(store);
-    return json(res, 201, classItem, origin);
-  }
-
-  if (req.method === 'PATCH' && reqPath.match(/^\/api\/admin\/classes\/[^/]+$/)) {
-    const id = reqPath.split('/')[4];
-    const { name, code, enabled } = await parseBody(req);
-    const classItem = store.classes.find((c) => c.id === id);
-    if (!classItem) return json(res, 404, { error: 'Class not found' }, origin);
-
-    if (code !== undefined) {
-      if (!/^\d{5}$/.test(String(code))) return json(res, 400, { error: 'code must be 5 digits' }, origin);
-      if (store.classes.some((c) => c.id !== id && c.code === String(code))) return json(res, 400, { error: 'Class code already used' }, origin);
-      classItem.code = String(code);
-    }
-    if (name !== undefined) classItem.name = name;
-    if (enabled !== undefined) classItem.enabled = Boolean(enabled);
-    saveStore(store);
-    return json(res, 200, classItem, origin);
-  }
-
-  if (req.method === 'DELETE' && reqPath.match(/^\/api\/admin\/classes\/[^/]+$/)) {
-    const id = reqPath.split('/')[4];
-    const before = store.classes.length;
-    store.classes = store.classes.filter((item) => item.id !== id);
-    if (store.classes.length === before) return json(res, 404, { error: 'Class not found' }, origin);
-
-    for (const user of store.users) {
-      user.classIds = (user.classIds || []).filter((classId) => classId !== id);
-    }
-    store.messages = (store.messages || []).filter((m) => m.classId !== id);
-
-    saveStore(store);
-    return json(res, 200, { message: 'Class deleted' }, origin);
   }
 
   return false;
