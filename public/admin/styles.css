@@ -1,0 +1,152 @@
+:root {
+  --bg: #0a1020;
+  --panel: rgba(18, 26, 44, 0.88);
+  --line: #2a3c5d;
+  --text: #e4ecff;
+  --muted: #93a8d1;
+  --accent: #2aabee;
+  --accent-2: #1d93d0;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at top, #12213b, #0a1020 55%);
+  color: var(--text);
+  font-family: Inter, system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+.bg-glow {
+  position: fixed;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.38;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.glow-a {
+  background: #2aabee;
+  top: -100px;
+  left: -90px;
+  animation: floatGlow 9s ease-in-out infinite;
+}
+
+.glow-b {
+  background: #8b5cf6;
+  right: -80px;
+  bottom: -110px;
+  animation: floatGlow 11s ease-in-out infinite reverse;
+}
+
+.app {
+  position: relative;
+  z-index: 1;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 14px;
+  animation: fadeUp 0.35s ease;
+}
+
+.form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+input,
+select,
+button {
+  background: #0f1a30;
+  color: var(--text);
+  border: 1px solid #344c73;
+  border-radius: 10px;
+  padding: 9px 11px;
+}
+
+input:focus {
+  outline: none;
+  border-color: #42bfff;
+  box-shadow: 0 0 0 2px rgba(66, 191, 255, 0.24);
+}
+
+button {
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  border: 0;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(42, 171, 238, 0.28);
+  transition: transform 0.2s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button.muted {
+  background: #4a5f82;
+}
+
+.hidden {
+  display: none;
+}
+
+.user,
+.class-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid #223350;
+  padding: 10px 0;
+}
+
+.message {
+  color: #8ed8ff;
+  min-height: 20px;
+}
+
+.message.error {
+  color: #ff9aa3;
+}
+
+.hint {
+  color: var(--muted);
+  margin-bottom: 0;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes floatGlow {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(20px, -14px);
+  }
+}
