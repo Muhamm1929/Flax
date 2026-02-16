@@ -5,6 +5,9 @@ const loginCard = document.getElementById('loginCard');
 const usersRoot = document.getElementById('users');
 const classesRoot = document.getElementById('classes');
 const classForm = document.getElementById('classForm');
+const globalMsg = document.getElementById('globalMsg');
+const passwordForm = document.getElementById('passwordForm');
+const logoutBtn = document.getElementById('logoutBtn');
 
 let adminPassword = localStorage.getItem('adminPassword') || '';
 
@@ -15,37 +18,78 @@ function headers() {
   };
 }
 
-async function login(password) {
-  const res = await fetch('/api/admin/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password })
-  });
+function setMessage(text, isError = false) {
+  globalMsg.textContent = text;
+  globalMsg.classList.toggle('error', isError);
+}
+
+async function request(url, options = {}, showError = true) {
+  const res = await fetch(url, options);
+  const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    if (res.status === 401) {
+      localStorage.removeItem('adminPassword');
+      adminPassword = '';
+      loginCard.classList.remove('hidden');
+      panel.classList.add('hidden');
+    }
+
+    if (showError) {
+      setMessage(data.error || 'Ошибка запроса', true);
+    }
+
+    return { ok: false, data };
+  }
+
+  return { ok: true, data };
+}
+
+async function login(password) {
+  const result = await request(
+    '/api/admin/login',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    },
+    false
+  );
+
+  if (!result.ok) {
     loginMsg.textContent = 'Неверный пароль';
     return false;
   }
 
+  loginMsg.textContent = '';
   adminPassword = password;
   localStorage.setItem('adminPassword', password);
   loginCard.classList.add('hidden');
   panel.classList.remove('hidden');
   await Promise.all([loadUsers(), loadClasses()]);
+  setMessage('Вы вошли в админ-панель.');
   return true;
 }
 
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const formData = new FormData(loginForm);
-  await login(formData.get('password'));
+  await login(String(formData.get('password')));
+});
+
+logoutBtn.addEventListener('click', () => {
+  localStorage.removeItem('adminPassword');
+  adminPassword = '';
+  loginCard.classList.remove('hidden');
+  panel.classList.add('hidden');
+  setMessage('Вы вышли из админ-панели.');
 });
 
 async function loadUsers() {
-  const res = await fetch('/api/admin/users', { headers: headers() });
-  if (!res.ok) return;
-  const users = await res.json();
+  const result = await request('/api/admin/users', { headers: headers() });
+  if (!result.ok) return;
 
+  const users = result.data;
   usersRoot.innerHTML = users
     .map(
       (user) => `
@@ -66,27 +110,35 @@ async function loadUsers() {
 }
 
 window.setRole = async (id, role) => {
-  await fetch(`/api/admin/users/${id}/status`, {
+  const result = await request(`/api/admin/users/${id}/status`, {
     method: 'PATCH',
     headers: headers(),
     body: JSON.stringify({ role })
   });
-  await loadUsers();
+
+  if (result.ok) {
+    setMessage('Статус пользователя обновлён.');
+    await loadUsers();
+  }
 };
 
 window.removeUser = async (id) => {
-  await fetch(`/api/admin/users/${id}`, {
+  const result = await request(`/api/admin/users/${id}`, {
     method: 'DELETE',
     headers: headers()
   });
-  await loadUsers();
+
+  if (result.ok) {
+    setMessage('Пользователь удалён.');
+    await loadUsers();
+  }
 };
 
 async function loadClasses() {
-  const res = await fetch('/api/admin/classes', { headers: headers() });
-  if (!res.ok) return;
-  const classes = await res.json();
+  const result = await request('/api/admin/classes', { headers: headers() });
+  if (!result.ok) return;
 
+  const classes = result.data;
   classesRoot.innerHTML = classes
     .map(
       (item) => `
@@ -101,15 +153,19 @@ async function loadClasses() {
     `
     )
     .join('');
-}
+};
 
 window.toggleClass = async (id, enabled) => {
-  await fetch(`/api/admin/classes/${id}`, {
+  const result = await request(`/api/admin/classes/${id}`, {
     method: 'PATCH',
     headers: headers(),
     body: JSON.stringify({ enabled })
   });
-  await loadClasses();
+
+  if (result.ok) {
+    setMessage('Состояние класса обновлено.');
+    await loadClasses();
+  }
 };
 
 classForm.addEventListener('submit', async (e) => {
@@ -117,14 +173,37 @@ classForm.addEventListener('submit', async (e) => {
   const formData = new FormData(classForm);
   const payload = Object.fromEntries(formData.entries());
 
-  await fetch('/api/admin/classes', {
+  const result = await request('/api/admin/classes', {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify(payload)
   });
 
-  classForm.reset();
-  await loadClasses();
+  if (result.ok) {
+    classForm.reset();
+    setMessage('Класс создан.');
+    await loadClasses();
+  }
+});
+
+passwordForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(passwordForm);
+  const currentPassword = String(formData.get('currentPassword'));
+  const newPassword = String(formData.get('newPassword'));
+
+  const result = await request('/api/admin/change-password', {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ currentPassword, newPassword })
+  });
+
+  if (result.ok) {
+    adminPassword = newPassword;
+    localStorage.setItem('adminPassword', newPassword);
+    passwordForm.reset();
+    setMessage('Пароль админ-панели успешно изменён.');
+  }
 });
 
 if (adminPassword) {

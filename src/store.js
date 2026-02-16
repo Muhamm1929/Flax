@@ -7,8 +7,30 @@ const baseState = {
   users: [],
   classes: [],
   sessions: [],
-  loginPodiumOrder: []
+  loginPodiumOrder: [],
+  settings: {
+    adminPasswordHash: ''
+  }
 };
+
+function mergeWithBase(value, base) {
+  if (Array.isArray(base)) {
+    return Array.isArray(value) ? value : base;
+  }
+
+  if (base && typeof base === 'object') {
+    const source = value && typeof value === 'object' ? value : {};
+    const result = { ...source };
+
+    for (const key of Object.keys(base)) {
+      result[key] = mergeWithBase(source[key], base[key]);
+    }
+
+    return result;
+  }
+
+  return value === undefined ? base : value;
+}
 
 function ensureStore() {
   if (!fs.existsSync(storePath)) {
@@ -19,21 +41,16 @@ function ensureStore() {
 function loadStore() {
   ensureStore();
   const raw = fs.readFileSync(storePath, 'utf-8');
-  return JSON.parse(raw);
+  const parsed = JSON.parse(raw);
+  return mergeWithBase(parsed, baseState);
 }
 
 function saveStore(state) {
   fs.writeFileSync(storePath, JSON.stringify(state, null, 2));
 }
 
-function updateStore(mutator) {
-  const state = loadStore();
-  mutator(state);
-  saveStore(state);
-}
-
 module.exports = {
   loadStore,
   saveStore,
-  updateStore
+  baseState
 };

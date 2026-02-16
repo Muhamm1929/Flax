@@ -20,6 +20,20 @@
       </section>
 
       <section class="hidden" id="panel">
+        <div class="toolbar">
+          <button id="logoutBtn" class="muted">Выйти из админки</button>
+        </div>
+
+        <div class="card">
+          <h2>Сменить пароль админ-панели</h2>
+          <form id="passwordForm" class="form">
+            <input name="currentPassword" placeholder="Текущий пароль (5 цифр)" pattern="\d{5}" required />
+            <input name="newPassword" placeholder="Новый пароль (5 цифр)" pattern="\d{5}" required />
+            <button>Сменить пароль</button>
+          </form>
+          <p class="hint">После смены пароля вход в админку будет только с новым 5-значным паролем.</p>
+        </div>
+
         <div class="card">
           <h2>Классы</h2>
           <form id="classForm" class="form row">
@@ -35,6 +49,8 @@
           <div id="users"></div>
         </div>
       </section>
+
+      <p id="globalMsg" class="message"></p>
     </main>
 
     <script src="/admin/script.js"></script>

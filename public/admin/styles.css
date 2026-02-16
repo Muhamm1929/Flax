@@ -4,7 +4,13 @@ body {
   color: #e5e7eb;
   font-family: Inter, system-ui, sans-serif;
 }
-.app { max-width: 860px; margin: 0 auto; padding: 20px; }
+
+.app {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
 .card {
   background: #111827;
   border: 1px solid #1f2937;
@@ -12,17 +18,39 @@ body {
   padding: 14px;
   margin-bottom: 14px;
 }
-.form { display: flex; gap: 8px; flex-wrap: wrap; }
-input, select, button {
+
+.form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+input,
+select,
+button {
   background: #0b1220;
   color: #e5e7eb;
   border: 1px solid #334155;
   border-radius: 8px;
   padding: 8px 10px;
 }
-button { background: #2563eb; border: 0; cursor: pointer; }
-.hidden { display: none; }
-.user, .class-row {
+
+button {
+  background: #2563eb;
+  border: 0;
+  cursor: pointer;
+}
+
+button.muted {
+  background: #475569;
+}
+
+.hidden {
+  display: none;
+}
+
+.user,
+.class-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -30,4 +58,23 @@ button { background: #2563eb; border: 0; cursor: pointer; }
   border-top: 1px solid #1f2937;
   padding: 10px 0;
 }
-.message { color: #fca5a5; }
+
+.message {
+  color: #93c5fd;
+  min-height: 20px;
+}
+
+.message.error {
+  color: #fca5a5;
+}
+
+.hint {
+  color: #9ca3af;
+  margin-bottom: 0;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}

@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const { loadStore, saveStore } = require('./store');
 
 const PORT = process.env.PORT || 3000;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '12345';
+const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '12345';
 const DEV_USERNAMES = (process.env.DEV_USERNAMES || 'dev1,dev2')
   .split(',')
   .map((name) => name.trim().toLowerCase())
@@ -23,7 +23,7 @@ function json(res, statusCode, payload, origin = '*') {
   res.end(JSON.stringify(payload));
 }
 
-function setCors(req, res) {
+function setCors(req) {
   const origin = req.headers.origin;
   if (SOCIAL_ORIGIN === '*' || ADMIN_ORIGIN === '*') return '*';
   if (!origin) return SOCIAL_ORIGIN;
@@ -59,12 +59,13 @@ function create7DigitId(store) {
   return id;
 }
 
-function passwordHash(password, salt = crypto.randomBytes(16).toString('hex')) {
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
   const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
   return `${salt}:${hash}`;
 }
 
 function verifyPassword(password, stored) {
+  if (!stored || !stored.includes(':')) return false;
   const [salt, original] = stored.split(':');
   const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
   return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(original, 'hex'));
@@ -116,6 +117,26 @@ function serveStatic(reqPath, res, origin) {
   return true;
 }
 
+function ensureBootstrapState() {
+  const store = loadStore();
+
+  if (!store.settings.adminPasswordHash) {
+    store.settings.adminPasswordHash = hashPassword(DEFAULT_ADMIN_PASSWORD);
+  }
+
+  if (store.classes.length === 0) {
+    store.classes.push({ id: crypto.randomUUID(), name: 'Class A', code: '11111', enabled: true });
+  }
+
+  saveStore(store);
+}
+
+function isAdminAuthorized(req, store) {
+  const password = req.headers['x-admin-password'];
+  if (!password) return false;
+  return verifyPassword(password, store.settings.adminPasswordHash);
+}
+
 async function handleApi(req, res, origin) {
   const reqPath = new URL(req.url, `http://${req.headers.host}`).pathname;
 
@@ -135,7 +156,7 @@ async function handleApi(req, res, origin) {
       id: create7DigitId(store),
       name,
       username,
-      passwordHash: passwordHash(password),
+      passwordHash: hashPassword(password),
       classIds: [classItem.id],
       likes: 0,
       friends: 0,
@@ -194,16 +215,31 @@ async function handleApi(req, res, origin) {
 
   if (req.method === 'POST' && reqPath === '/api/admin/login') {
     const { password } = await parseBody(req);
-    if (password !== ADMIN_PASSWORD) return json(res, 401, { error: 'Invalid admin password' }, origin);
+    const store = loadStore();
+    if (!verifyPassword(password, store.settings.adminPasswordHash)) {
+      return json(res, 401, { error: 'Invalid admin password' }, origin);
+    }
     return json(res, 200, { ok: true }, origin);
   }
 
   if (!reqPath.startsWith('/api/admin/')) return false;
 
-  if (req.headers['x-admin-password'] !== ADMIN_PASSWORD) return json(res, 401, { error: 'Invalid admin password' }, origin);
+  const store = loadStore();
+  if (!isAdminAuthorized(req, store)) return json(res, 401, { error: 'Invalid admin password' }, origin);
+
+  if (req.method === 'POST' && reqPath === '/api/admin/change-password') {
+    const { currentPassword, newPassword } = await parseBody(req);
+    if (!currentPassword || !newPassword) return json(res, 400, { error: 'currentPassword and newPassword are required' }, origin);
+    if (!/^\d{5}$/.test(String(newPassword))) return json(res, 400, { error: 'newPassword must be 5 digits' }, origin);
+    if (!verifyPassword(currentPassword, store.settings.adminPasswordHash)) return json(res, 401, { error: 'Current password is incorrect' }, origin);
+
+    store.settings.adminPasswordHash = hashPassword(String(newPassword));
+    saveStore(store);
+    return json(res, 200, { message: 'Admin password updated' }, origin);
+  }
 
   if (req.method === 'GET' && reqPath === '/api/admin/users') {
-    const users = loadStore().users.map((u) => ({
+    const users = store.users.map((u) => ({
       id: u.id,
       name: u.name,
       username: u.username,
@@ -221,7 +257,6 @@ async function handleApi(req, res, origin) {
     const { role } = await parseBody(req);
     if (!['USER', 'DEV'].includes(role)) return json(res, 400, { error: 'role must be USER or DEV' }, origin);
 
-    const store = loadStore();
     const user = store.users.find((u) => u.id === id);
     if (!user) return json(res, 404, { error: 'User not found' }, origin);
     user.role = role;
@@ -231,7 +266,6 @@ async function handleApi(req, res, origin) {
 
   if (req.method === 'DELETE' && reqPath.match(/^\/api\/admin\/users\/[^/]+$/)) {
     const id = reqPath.split('/')[4];
-    const store = loadStore();
     const len = store.users.length;
     store.users = store.users.filter((u) => u.id !== id);
     store.sessions = store.sessions.filter((s) => s.userId !== id);
@@ -242,13 +276,12 @@ async function handleApi(req, res, origin) {
   }
 
   if (req.method === 'GET' && reqPath === '/api/admin/classes') {
-    return json(res, 200, loadStore().classes, origin);
+    return json(res, 200, store.classes, origin);
   }
 
   if (req.method === 'POST' && reqPath === '/api/admin/classes') {
     const { name, code } = await parseBody(req);
     if (!name || !code || !/^\d{5}$/.test(String(code))) return json(res, 400, { error: 'name and 5-digit code are required' }, origin);
-    const store = loadStore();
     if (store.classes.some((c) => c.code === String(code))) return json(res, 400, { error: 'Class code already exists' }, origin);
     const classItem = { id: crypto.randomUUID(), name, code: String(code), enabled: true };
     store.classes.push(classItem);
@@ -259,7 +292,6 @@ async function handleApi(req, res, origin) {
   if (req.method === 'PATCH' && reqPath.match(/^\/api\/admin\/classes\/[^/]+$/)) {
     const id = reqPath.split('/')[4];
     const { name, code, enabled } = await parseBody(req);
-    const store = loadStore();
     const classItem = store.classes.find((c) => c.id === id);
     if (!classItem) return json(res, 404, { error: 'Class not found' }, origin);
 
@@ -278,7 +310,7 @@ async function handleApi(req, res, origin) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const origin = setCors(req, res);
+  const origin = setCors(req);
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
@@ -315,11 +347,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-const store = loadStore();
-if (store.classes.length === 0) {
-  store.classes.push({ id: crypto.randomUUID(), name: 'Class A', code: '11111', enabled: true });
-  saveStore(store);
-}
+ensureBootstrapState();
 
 server.listen(PORT, () => {
   console.log(`Server started on http://localhost:${PORT}`);
