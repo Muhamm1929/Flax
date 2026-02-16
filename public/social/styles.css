@@ -1,0 +1,285 @@
+:root {
+  --bg: #0b1018;
+  --sidebar: #111a28;
+  --panel: #172233;
+  --panel-soft: #1b2a3f;
+  --text: #e6eefc;
+  --muted: #91a4c6;
+  --accent: #2aabee;
+  --accent-2: #1c9bd8;
+  --danger: #ef476f;
+  --line: #26364f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, Segoe UI, system-ui, sans-serif;
+  background: radial-gradient(circle at top, #122238, #0b1018 45%);
+  color: var(--text);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  border-right: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--sidebar), #0f1724);
+  padding: 18px;
+}
+
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--accent), #4fd5ff);
+  color: #062033;
+  font-weight: 800;
+}
+
+.brand h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.brand p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+button {
+  border: 0;
+  border-radius: 12px;
+  background: #213148;
+  color: var(--text);
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+button.active,
+.form button,
+.message-form button,
+.like-btn {
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  color: white;
+}
+
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+}
+
+.form {
+  display: grid;
+  gap: 10px;
+}
+
+input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0f1b2c;
+  color: var(--text);
+  padding: 10px;
+}
+
+.message,
+.soft {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.class-list {
+  display: grid;
+  gap: 10px;
+}
+
+.class-item {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.class-item h4 {
+  margin: 0 0 8px;
+}
+
+.class-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-area {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 1fr 330px;
+  gap: 14px;
+  padding: 16px;
+}
+
+.chat-header {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+
+.chat-header h2 {
+  margin: 0;
+}
+
+.chat-header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.chat-box,
+.profile-box {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.chat-list {
+  height: calc(100vh - 250px);
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.chat-item {
+  background: #122031;
+  border: 1px solid #243852;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.chat-meta {
+  font-size: 12px;
+  color: #9db8dd;
+  margin-bottom: 5px;
+}
+
+.chat-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.message-form {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.profile-box h3 {
+  margin: 4px 0 10px;
+}
+
+.classmates {
+  display: grid;
+  gap: 8px;
+}
+
+.classmate {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: #122031;
+  border: 1px solid #243852;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.like-btn.liked {
+  background: linear-gradient(180deg, #f14f7d, #d93463);
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.badge.default {
+  background: #344760;
+}
+
+.badge.diamond {
+  background: linear-gradient(90deg, #67e8f9, #a78bfa);
+  color: #111827;
+}
+
+.badge.gold {
+  background: linear-gradient(90deg, #f59e0b, #fde047);
+  color: #111827;
+}
+
+.badge.silver {
+  background: linear-gradient(90deg, #9ca3af, #e5e7eb);
+  color: #111827;
+}
+
+.badge.bronze {
+  background: linear-gradient(90deg, #b45309, #f59e0b);
+  color: #111827;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-area {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-list {
+    height: 360px;
+  }
+}
