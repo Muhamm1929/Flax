@@ -74,3 +74,13 @@ ADMIN_ORIGIN=https://your-admin-domain.vercel.app
 
 - Исправлено падение `FUNCTION_INVOCATION_FAILED`: хранилище теперь использует `/tmp/flax-store.json` в среде Vercel, чтобы функция не падала из-за read-only файловой системы.
 - Учтите, что `/tmp` на serverless не постоянный storage. Для продакшена лучше вынести данные в БД (Supabase/Neon/PlanetScale и т.д.).
+
+
+## Маршруты фронта
+
+- `/<...>` -> редирект на `/homepage`
+- `/homepage` — основной вход/выбор класса
+- `/registration` — сразу открыть вкладку регистрации
+- `/chat` — чат (если уже вошли и выбрали класс)
+- `/profile` — тот же app, с профилем через модальное окно
+- `/admin` — админ-панель

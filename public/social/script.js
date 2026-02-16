@@ -22,8 +22,16 @@ const changeNameForm = document.getElementById('changeNameForm');
 
 let meCache = null;
 
+function setPath(path) {
+  if (window.location.pathname !== path) {
+    history.replaceState({}, '', path);
+  }
+}
+
 function setAuthMode(mode) {
   authCard.classList.toggle('register-mode', mode === 'register');
+  if (mode === 'register') setPath('/registration');
+  else setPath('/homepage');
 }
 
 showLogin.onclick = () => {
@@ -50,11 +58,13 @@ function clearViewToAuth() {
   authCard.classList.remove('hidden');
   classSelector.classList.add('hidden');
   socialArea.classList.add('hidden');
+  setAuthMode('login');
 }
 
 function closeModals() {
   myProfileModal.classList.add('hidden');
   userProfileModal.classList.add('hidden');
+  setPath('/chat');
 }
 
 document.querySelectorAll('[data-close]').forEach((btn) => {
@@ -92,7 +102,7 @@ function renderMyProfile(data) {
 
   document.getElementById('logoutBtn').onclick = () => {
     localStorage.removeItem('token');
-    location.reload();
+    location.href = '/homepage';
   };
 }
 
@@ -222,6 +232,17 @@ window.openUserProfile = async (userId) => {
   `;
 
   userProfileModal.classList.remove('hidden');
+  setPath('/profile');
+};
+
+window.deleteMessage = async (id) => {
+  const { ok, data } = await api(`/api/messages/${id}`, { method: 'DELETE' });
+  if (!ok) {
+    msg.textContent = data.error || 'Не удалось удалить сообщение';
+    return;
+  }
+
+  await Promise.all([loadMessages(), loadProfile()]);
 };
 
 async function loadMessages() {
@@ -237,6 +258,7 @@ async function loadMessages() {
         <div>${item.text}</div>
         <div class="chat-actions">
           <button class="like-btn ${item.likedByMe ? 'liked' : ''}" onclick="toggleMessageLike('${item.id}')">❤️ ${item.likes}</button>
+          ${item.canDelete ? `<button class="ghost" onclick="deleteMessage('${item.id}')">Удалить</button>` : ''}
         </div>
       </article>
     `
@@ -322,12 +344,14 @@ changeNameForm.addEventListener('submit', async (e) => {
 switchClassBtn.addEventListener('click', async () => {
   socialArea.classList.add('hidden');
   classSelector.classList.remove('hidden');
+  setPath('/homepage');
   await loadClassesForSelection();
 });
 
 myProfileBtn.addEventListener('click', () => {
   if (!meCache) return;
   myProfileModal.classList.remove('hidden');
+  setPath('/profile');
 });
 
 async function bootSocial() {
@@ -339,6 +363,7 @@ async function bootSocial() {
   if (!me.hasJoinedClass || !me.activeClass) {
     classSelector.classList.remove('hidden');
     socialArea.classList.add('hidden');
+    setPath('/homepage');
     await loadClassesForSelection();
     return;
   }
@@ -347,11 +372,16 @@ async function bootSocial() {
   socialArea.classList.remove('hidden');
   activeClassTitle.textContent = me.activeClass.name;
   activeClassHint.textContent = `Чат класса ${me.activeClass.name}`;
+  setPath('/chat');
 
   await Promise.all([loadMessages(), loadClassmates()]);
 }
 
-setAuthMode('login');
+if (window.location.pathname === '/registration') {
+  showRegister.click();
+} else {
+  setAuthMode('login');
+}
 
 if (token()) {
   bootSocial();

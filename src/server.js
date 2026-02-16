@@ -12,6 +12,7 @@ const DEV_USERNAMES = (process.env.DEV_USERNAMES || 'dev1,dev2')
   .filter(Boolean);
 const SOCIAL_ORIGIN = process.env.SOCIAL_ORIGIN || '*';
 const ADMIN_ORIGIN = process.env.ADMIN_ORIGIN || '*';
+const TOKEN_SECRET = process.env.TOKEN_SECRET || 'change-me-token-secret';
 
 function json(res, statusCode, payload, origin = '*') {
   res.writeHead(statusCode, {
@@ -69,8 +70,29 @@ function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(original, 'hex'));
 }
 
-function createToken() {
-  return crypto.randomBytes(24).toString('hex');
+function createToken(userId) {
+  const payload = {
+    uid: userId,
+    exp: Date.now() + 1000 * 60 * 60 * 24 * 30
+  };
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto.createHmac('sha256', TOKEN_SECRET).update(encodedPayload).digest('base64url');
+  return `${encodedPayload}.${signature}`;
+}
+
+function parseToken(token) {
+  if (!token || !token.includes('.')) return null;
+  const [encodedPayload, signature] = token.split('.');
+  const expected = crypto.createHmac('sha256', TOKEN_SECRET).update(encodedPayload).digest('base64url');
+  if (expected !== signature) return null;
+
+  try {
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+    if (!payload.uid || !payload.exp || payload.exp < Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
 }
 
 function roleForUser(user, store) {
@@ -82,16 +104,35 @@ function roleForUser(user, store) {
   return { key: 'USER', label: 'USER', design: 'default' };
 }
 
-function serveStatic(reqPath, res, origin) {
-  let filePath;
-  if (reqPath.startsWith('/social')) filePath = path.join(__dirname, '..', 'public', reqPath);
-  else if (reqPath.startsWith('/admin')) filePath = path.join(__dirname, '..', 'public', reqPath);
-  else return false;
+function getSocialFilePath(reqPath) {
+  const socialAliases = ['/social', '/homepage', '/registration', '/chat', '/profile'];
 
-  if (reqPath === '/social' || reqPath === '/admin') {
-    filePath = path.join(__dirname, '..', 'public', reqPath.slice(1), 'index.html');
+  for (const prefix of socialAliases) {
+    if (reqPath === prefix) {
+      return path.join(__dirname, '..', 'public', 'social', 'index.html');
+    }
+
+    if (reqPath.startsWith(`${prefix}/`)) {
+      const tail = reqPath.slice(prefix.length + 1);
+      return path.join(__dirname, '..', 'public', 'social', tail);
+    }
   }
 
+  return null;
+}
+
+function serveStatic(reqPath, res, origin) {
+  let filePath = getSocialFilePath(reqPath);
+
+  if (!filePath && reqPath === '/admin') {
+    filePath = path.join(__dirname, '..', 'public', 'admin', 'index.html');
+  }
+
+  if (!filePath && reqPath.startsWith('/admin/')) {
+    filePath = path.join(__dirname, '..', 'public', 'admin', reqPath.slice('/admin/'.length));
+  }
+
+  if (!filePath) return false;
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) return false;
 
   const ext = path.extname(filePath);
@@ -108,6 +149,7 @@ function serveStatic(reqPath, res, origin) {
   fs.createReadStream(filePath).pipe(res);
   return true;
 }
+
 
 function ensureBootstrapState() {
   const store = loadStore();
@@ -142,10 +184,9 @@ function isAdminAuthorized(req, store) {
 function getUserByToken(store, req) {
   const auth = req.headers.authorization || '';
   const token = auth.replace('Bearer ', '');
-  if (!token) return null;
-  const session = store.sessions.find((item) => item.token === token);
-  if (!session) return null;
-  return store.users.find((item) => item.id === session.userId) || null;
+  const payload = parseToken(token);
+  if (!payload) return null;
+  return store.users.find((item) => item.id === payload.uid) || null;
 }
 
 function ensureActiveClass(user, store) {
@@ -196,9 +237,7 @@ async function handleApi(req, res, origin) {
       store.loginPodiumOrder.push(user.id);
     }
 
-    const token = createToken();
-    store.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() });
-    saveStore(store);
+    const token = createToken(user.id);
     return json(res, 200, { token });
   }
 
@@ -462,7 +501,8 @@ async function handleApi(req, res, origin) {
           likedByMe: (item.likedBy || []).includes(user.id),
           author: author
             ? { id: author.id, name: author.name, username: author.username }
-            : { id: item.authorId, name: 'Unknown', username: 'unknown' }
+            : { id: item.authorId, name: 'Unknown', username: 'unknown' },
+          canDelete: item.authorId === user.id || user.role === 'DEV'
         };
       });
 
@@ -506,6 +546,25 @@ async function handleApi(req, res, origin) {
     return json(res, 200, { likes: message.likedBy.length, likedByMe: message.likedBy.includes(user.id) }, origin);
   }
 
+
+  if (req.method === 'DELETE' && reqPath.match(/^\/api\/messages\/[^/]+$/)) {
+    const messageId = reqPath.split('/')[3];
+    const idx = store.messages.findIndex((item) => item.id === messageId && item.classId === user.activeClassId);
+    if (idx === -1) return json(res, 404, { error: 'Message not found' }, origin);
+
+    const message = store.messages[idx];
+    const isOwner = message.authorId === user.id;
+    const isModerator = user.role === 'DEV';
+    if (!isOwner && !isModerator) return json(res, 403, { error: 'You can delete only your messages' }, origin);
+
+    const author = store.users.find((u) => u.id === message.authorId);
+    if (author) author.messages = Math.max(0, (author.messages || 0) - 1);
+
+    store.messages.splice(idx, 1);
+    saveStore(store);
+    return json(res, 200, { message: 'Message deleted' }, origin);
+  }
+
   return false;
 }
 
@@ -529,7 +588,7 @@ async function requestHandler(req, res) {
 
   const reqPath = new URL(req.url, `http://${req.headers.host}`).pathname;
   if (reqPath === '/') {
-    res.writeHead(302, { Location: '/social' });
+    res.writeHead(302, { Location: '/homepage' });
     res.end();
     return;
   }
