@@ -34,9 +34,25 @@
         <p id="authMessage" class="message"></p>
       </section>
 
-      <section class="card hidden" id="profileCard">
-        <h2>Профиль</h2>
-        <div id="profile"></div>
+      <section class="hidden" id="socialArea">
+        <section class="card" id="profileCard">
+          <h2>Профиль</h2>
+          <div id="profile"></div>
+        </section>
+
+        <section class="card">
+          <h2>Классный чат</h2>
+          <form id="messageForm" class="form-inline">
+            <input name="text" placeholder="Напиши сообщение классу..." maxlength="500" required />
+            <button>Отправить</button>
+          </form>
+          <div id="chatList" class="chat-list"></div>
+        </section>
+
+        <section class="card">
+          <h2>Одноклассники</h2>
+          <div id="classmates" class="classmates"></div>
+        </section>
       </section>
     </main>
 

@@ -11,6 +11,7 @@ const baseState = {
   classes: [],
   sessions: [],
   loginPodiumOrder: [],
+  messages: [],
   settings: {
     adminPasswordHash: ''
   }

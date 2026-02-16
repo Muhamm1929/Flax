@@ -2,10 +2,13 @@ const loginForm = document.getElementById('loginForm');
 const registerForm = document.getElementById('registerForm');
 const msg = document.getElementById('authMessage');
 const authCard = document.getElementById('authCard');
-const profileCard = document.getElementById('profileCard');
+const socialArea = document.getElementById('socialArea');
 const profile = document.getElementById('profile');
 const showLogin = document.getElementById('showLogin');
 const showRegister = document.getElementById('showRegister');
+const chatList = document.getElementById('chatList');
+const messageForm = document.getElementById('messageForm');
+const classmatesRoot = document.getElementById('classmates');
 
 showLogin.onclick = () => {
   loginForm.classList.remove('hidden');
@@ -21,10 +24,23 @@ showRegister.onclick = () => {
   showLogin.classList.remove('active');
 };
 
+function token() {
+  return localStorage.getItem('token');
+}
+
+async function api(url, options = {}) {
+  const headers = {
+    ...(options.headers || {}),
+    Authorization: `Bearer ${token()}`
+  };
+  const res = await fetch(url, { ...options, headers });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, data };
+}
+
 registerForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const formData = new FormData(registerForm);
-  const payload = Object.fromEntries(formData.entries());
+  const payload = Object.fromEntries(new FormData(registerForm).entries());
 
   const res = await fetch('/api/auth/register', {
     method: 'POST',
@@ -40,8 +56,7 @@ registerForm.addEventListener('submit', async (e) => {
 
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const formData = new FormData(loginForm);
-  const payload = Object.fromEntries(formData.entries());
+  const payload = Object.fromEntries(new FormData(loginForm).entries());
 
   const res = await fetch('/api/auth/login', {
     method: 'POST',
@@ -57,22 +72,12 @@ loginForm.addEventListener('submit', async (e) => {
 
   localStorage.setItem('token', data.token);
   msg.textContent = '';
-  await loadProfile();
+  await bootSocial();
 });
 
 async function loadProfile() {
-  const token = localStorage.getItem('token');
-  if (!token) return;
-
-  const res = await fetch('/api/me', {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-
-  if (!res.ok) return;
-
-  const data = await res.json();
-  authCard.classList.add('hidden');
-  profileCard.classList.remove('hidden');
+  const { ok, data } = await api('/api/me');
+  if (!ok) return false;
 
   profile.innerHTML = `
     <p><b>Имя:</b> ${data.name}</p>
@@ -89,6 +94,91 @@ async function loadProfile() {
     localStorage.removeItem('token');
     location.reload();
   };
+  return true;
 }
 
-loadProfile();
+async function loadMessages() {
+  const { ok, data } = await api('/api/messages');
+  if (!ok) return;
+
+  chatList.innerHTML = data.length
+    ? data
+        .map(
+          (item) => `
+      <article class="chat-item">
+        <div class="chat-meta">${item.author.name} (@${item.author.username}) · ${new Date(item.createdAt).toLocaleString()}</div>
+        <div>${item.text}</div>
+        <div class="chat-actions">
+          <button class="like-btn ${item.likedByMe ? 'liked' : ''}" onclick="toggleMessageLike('${item.id}')">❤️ ${item.likes}</button>
+        </div>
+      </article>
+    `
+        )
+        .join('')
+    : '<p class="message">Пока сообщений нет. Напиши первым!</p>';
+}
+
+window.toggleMessageLike = async (id) => {
+  await api(`/api/messages/${id}/like`, { method: 'POST' });
+  await loadMessages();
+};
+
+async function loadClassmates() {
+  const { ok, data } = await api('/api/classmates');
+  if (!ok) return;
+
+  classmatesRoot.innerHTML = data
+    .map(
+      (u) => `
+      <div class="classmate">
+        <div>
+          <b>${u.name}</b> (@${u.username})<br/>
+          Лайков: ${u.likes}
+        </div>
+        <button class="like-btn ${u.likedByMe ? 'liked' : ''}" onclick="toggleUserLike('${u.id}')">${u.likedByMe ? 'Убрать лайк' : 'Лайкнуть'}</button>
+      </div>
+    `
+    )
+    .join('');
+};
+
+window.toggleUserLike = async (id) => {
+  const { ok, data } = await api(`/api/users/${id}/like`, { method: 'POST' });
+  if (!ok && data.error) {
+    msg.textContent = data.error;
+    return;
+  }
+  await Promise.all([loadClassmates(), loadProfile()]);
+};
+
+messageForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = String(new FormData(messageForm).get('text') || '').trim();
+  if (!text) return;
+
+  const { ok, data } = await api('/api/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text })
+  });
+
+  if (!ok) {
+    msg.textContent = data.error || 'Не удалось отправить сообщение';
+    return;
+  }
+
+  messageForm.reset();
+  await Promise.all([loadMessages(), loadProfile()]);
+});
+
+async function bootSocial() {
+  const ok = await loadProfile();
+  if (!ok) return;
+  authCard.classList.add('hidden');
+  socialArea.classList.remove('hidden');
+  await Promise.all([loadMessages(), loadClassmates()]);
+}
+
+if (token()) {
+  bootSocial();
+}

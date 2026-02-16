@@ -148,6 +148,7 @@ async function loadClasses() {
         </div>
         <div>
           <button onclick="toggleClass('${item.id}', ${!item.enabled})">${item.enabled ? 'Отключить' : 'Включить'}</button>
+          <button onclick="removeClass('${item.id}')">Удалить класс</button>
         </div>
       </div>
     `
@@ -165,6 +166,20 @@ window.toggleClass = async (id, enabled) => {
   if (result.ok) {
     setMessage('Состояние класса обновлено.');
     await loadClasses();
+  }
+};
+
+
+window.removeClass = async (id) => {
+  const result = await request(`/api/admin/classes/${id}`, {
+    method: 'DELETE',
+    headers: headers()
+  });
+
+  if (result.ok) {
+    setMessage('Класс удалён.');
+    await loadClasses();
+    await loadUsers();
   }
 };
 

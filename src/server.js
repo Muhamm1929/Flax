@@ -36,9 +36,7 @@ function parseBody(req) {
     let body = '';
     req.on('data', (chunk) => {
       body += chunk;
-      if (body.length > 1e6) {
-        reject(new Error('Payload too large'));
-      }
+      if (body.length > 1e6) reject(new Error('Payload too large'));
     });
     req.on('end', () => {
       try {
@@ -98,9 +96,7 @@ function serveStatic(reqPath, res, origin) {
     filePath = path.join(__dirname, '..', 'public', reqPath.slice(1), 'index.html');
   }
 
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    return false;
-  }
+  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) return false;
 
   const ext = path.extname(filePath);
   const types = {
@@ -124,6 +120,17 @@ function ensureBootstrapState() {
     store.settings.adminPasswordHash = hashPassword(DEFAULT_ADMIN_PASSWORD);
   }
 
+  if (!Array.isArray(store.messages)) {
+    store.messages = [];
+  }
+
+  for (const user of store.users) {
+    if (!Array.isArray(user.classIds)) user.classIds = [];
+    if (!Array.isArray(user.likedBy)) user.likedBy = [];
+    if (typeof user.messages !== 'number') user.messages = 0;
+    if (typeof user.friends !== 'number') user.friends = 0;
+  }
+
   if (store.classes.length === 0) {
     store.classes.push({ id: crypto.randomUUID(), name: 'Class A', code: '11111', enabled: true });
   }
@@ -135,6 +142,15 @@ function isAdminAuthorized(req, store) {
   const password = req.headers['x-admin-password'];
   if (!password) return false;
   return verifyPassword(password, store.settings.adminPasswordHash);
+}
+
+function getUserByToken(store, req) {
+  const auth = req.headers.authorization || '';
+  const token = auth.replace('Bearer ', '');
+  if (!token) return null;
+  const session = store.sessions.find((item) => item.token === token);
+  if (!session) return null;
+  return store.users.find((item) => item.id === session.userId) || null;
 }
 
 async function handleApi(req, res, origin) {
@@ -158,7 +174,7 @@ async function handleApi(req, res, origin) {
       username,
       passwordHash: hashPassword(password),
       classIds: [classItem.id],
-      likes: 0,
+      likedBy: [],
       friends: 0,
       messages: 0,
       role: DEV_USERNAMES.includes(normalized) ? 'DEV' : 'USER'
@@ -188,13 +204,8 @@ async function handleApi(req, res, origin) {
   }
 
   if (req.method === 'GET' && reqPath === '/api/me') {
-    const auth = req.headers.authorization || '';
-    const token = auth.replace('Bearer ', '');
-    if (!token) return json(res, 401, { error: 'No token' }, origin);
-
     const store = loadStore();
-    const session = store.sessions.find((item) => item.token === token);
-    const user = session ? store.users.find((item) => item.id === session.userId) : null;
+    const user = getUserByToken(store, req);
     if (!user) return json(res, 401, { error: 'Invalid token' }, origin);
 
     return json(
@@ -204,7 +215,7 @@ async function handleApi(req, res, origin) {
         id: user.id,
         name: user.name,
         username: user.username,
-        likes: user.likes,
+        likes: (user.likedBy || []).length,
         friends: user.friends,
         messages: user.messages,
         role: roleForUser(user, store)
@@ -213,12 +224,125 @@ async function handleApi(req, res, origin) {
     );
   }
 
+  if (req.method === 'GET' && reqPath === '/api/classmates') {
+    const store = loadStore();
+    const user = getUserByToken(store, req);
+    if (!user) return json(res, 401, { error: 'Invalid token' }, origin);
+
+    const classId = user.classIds[0];
+    const classmates = store.users
+      .filter((item) => item.classIds.includes(classId))
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        username: item.username,
+        likes: (item.likedBy || []).length,
+        likedByMe: (item.likedBy || []).includes(user.id)
+      }));
+
+    return json(res, 200, classmates, origin);
+  }
+
+  if (req.method === 'POST' && reqPath.match(/^\/api\/users\/[^/]+\/like$/)) {
+    const store = loadStore();
+    const currentUser = getUserByToken(store, req);
+    if (!currentUser) return json(res, 401, { error: 'Invalid token' }, origin);
+
+    const targetId = reqPath.split('/')[3];
+    if (targetId === currentUser.id) return json(res, 400, { error: 'Cannot like yourself' }, origin);
+
+    const target = store.users.find((item) => item.id === targetId);
+    if (!target) return json(res, 404, { error: 'User not found' }, origin);
+
+    if (!Array.isArray(target.likedBy)) target.likedBy = [];
+
+    if (target.likedBy.includes(currentUser.id)) {
+      target.likedBy = target.likedBy.filter((id) => id !== currentUser.id);
+    } else {
+      target.likedBy.push(currentUser.id);
+    }
+
+    saveStore(store);
+    return json(res, 200, { likes: target.likedBy.length, likedByMe: target.likedBy.includes(currentUser.id) }, origin);
+  }
+
+  if (req.method === 'GET' && reqPath === '/api/messages') {
+    const store = loadStore();
+    const user = getUserByToken(store, req);
+    if (!user) return json(res, 401, { error: 'Invalid token' }, origin);
+
+    const classId = user.classIds[0];
+    const messages = (store.messages || [])
+      .filter((item) => item.classId === classId)
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      .map((item) => ({
+        id: item.id,
+        text: item.text,
+        createdAt: item.createdAt,
+        likes: (item.likedBy || []).length,
+        likedByMe: (item.likedBy || []).includes(user.id),
+        author: store.users.find((u) => u.id === item.authorId)
+          ? {
+              id: item.authorId,
+              name: store.users.find((u) => u.id === item.authorId).name,
+              username: store.users.find((u) => u.id === item.authorId).username
+            }
+          : { id: item.authorId, name: 'Unknown', username: 'unknown' }
+      }));
+
+    return json(res, 200, messages, origin);
+  }
+
+  if (req.method === 'POST' && reqPath === '/api/messages') {
+    const { text } = await parseBody(req);
+    if (!text || !String(text).trim()) return json(res, 400, { error: 'text is required' }, origin);
+
+    const store = loadStore();
+    const user = getUserByToken(store, req);
+    if (!user) return json(res, 401, { error: 'Invalid token' }, origin);
+
+    const classId = user.classIds[0];
+    const message = {
+      id: crypto.randomUUID(),
+      classId,
+      authorId: user.id,
+      text: String(text).trim().slice(0, 500),
+      likedBy: [],
+      createdAt: new Date().toISOString()
+    };
+
+    store.messages.push(message);
+    user.messages = (user.messages || 0) + 1;
+    saveStore(store);
+
+    return json(res, 201, { message: 'Message posted' }, origin);
+  }
+
+  if (req.method === 'POST' && reqPath.match(/^\/api\/messages\/[^/]+\/like$/)) {
+    const store = loadStore();
+    const user = getUserByToken(store, req);
+    if (!user) return json(res, 401, { error: 'Invalid token' }, origin);
+
+    const messageId = reqPath.split('/')[3];
+    const message = store.messages.find((item) => item.id === messageId);
+    if (!message) return json(res, 404, { error: 'Message not found' }, origin);
+
+    if (!Array.isArray(message.likedBy)) message.likedBy = [];
+
+    if (message.likedBy.includes(user.id)) {
+      message.likedBy = message.likedBy.filter((id) => id !== user.id);
+    } else {
+      message.likedBy.push(user.id);
+    }
+
+    saveStore(store);
+    return json(res, 200, { likes: message.likedBy.length, likedByMe: message.likedBy.includes(user.id) }, origin);
+  }
+
   if (req.method === 'POST' && reqPath === '/api/admin/login') {
     const { password } = await parseBody(req);
     const store = loadStore();
-    if (!verifyPassword(password, store.settings.adminPasswordHash)) {
-      return json(res, 401, { error: 'Invalid admin password' }, origin);
-    }
+    if (!verifyPassword(password, store.settings.adminPasswordHash)) return json(res, 401, { error: 'Invalid admin password' }, origin);
     return json(res, 200, { ok: true }, origin);
   }
 
@@ -245,7 +369,7 @@ async function handleApi(req, res, origin) {
       username: u.username,
       classIds: u.classIds,
       role: u.role,
-      likes: u.likes,
+      likes: (u.likedBy || []).length,
       friends: u.friends,
       messages: u.messages
     }));
@@ -270,6 +394,10 @@ async function handleApi(req, res, origin) {
     store.users = store.users.filter((u) => u.id !== id);
     store.sessions = store.sessions.filter((s) => s.userId !== id);
     store.loginPodiumOrder = store.loginPodiumOrder.filter((userId) => userId !== id);
+    store.messages = store.messages.filter((m) => m.authorId !== id);
+    for (const user of store.users) {
+      user.likedBy = (user.likedBy || []).filter((likerId) => likerId !== id);
+    }
     if (store.users.length === len) return json(res, 404, { error: 'User not found' }, origin);
     saveStore(store);
     return json(res, 200, { message: 'User deleted' }, origin);
@@ -304,6 +432,21 @@ async function handleApi(req, res, origin) {
     if (enabled !== undefined) classItem.enabled = Boolean(enabled);
     saveStore(store);
     return json(res, 200, classItem, origin);
+  }
+
+  if (req.method === 'DELETE' && reqPath.match(/^\/api\/admin\/classes\/[^/]+$/)) {
+    const id = reqPath.split('/')[4];
+    const before = store.classes.length;
+    store.classes = store.classes.filter((item) => item.id !== id);
+    if (store.classes.length === before) return json(res, 404, { error: 'Class not found' }, origin);
+
+    for (const user of store.users) {
+      user.classIds = (user.classIds || []).filter((classId) => classId !== id);
+    }
+    store.messages = (store.messages || []).filter((m) => m.classId !== id);
+
+    saveStore(store);
+    return json(res, 200, { message: 'Class deleted' }, origin);
   }
 
   return false;
