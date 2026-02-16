@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Class Social</title>
+    <link rel="stylesheet" href="/social/styles.css" />
+  </head>
+  <body>
+    <div class="bg-glow glow-1"></div>
+    <div class="bg-glow glow-2"></div>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="logo">CS</div>
+          <div>
+            <h1>Class Social</h1>
+            <p>Telegram-style для класса</p>
+          </div>
+        </div>
+
+        <div id="authCard" class="panel auth-panel">
+          <div class="tabs-row">
+            <div class="tabs">
+              <button id="showLogin" class="active">Вход</button>
+              <button id="showRegister">Регистрация</button>
+            </div>
+            <div class="neon-pill">NEON</div>
+          </div>
+
+          <form id="loginForm" class="form">
+            <input name="username" placeholder="Username" required />
+            <input name="password" type="password" placeholder="Пароль" required />
+            <button type="submit">Войти</button>
+          </form>
+
+          <form id="registerForm" class="form hidden">
+            <input name="name" placeholder="Имя" required />
+            <input name="username" placeholder="Username" required />
+            <input name="password" type="password" placeholder="Пароль" required />
+            <button type="submit">Зарегистрироваться</button>
+          </form>
+
+          <p id="authMessage" class="message"></p>
+        </div>
+
+        <div id="classSelector" class="panel hidden animated-panel">
+          <h3>Выбор класса</h3>
+          <p class="soft">После входа выбери класс и введи пароль класса.</p>
+          <div id="classList" class="class-list"></div>
+        </div>
+      </aside>
+
+      <main class="chat-area hidden" id="socialArea">
+        <header class="chat-header animated-panel">
+          <div>
+            <h2 id="activeClassTitle">Класс</h2>
+            <p id="activeClassHint">Сообщения вашего класса</p>
+          </div>
+          <div class="header-actions">
+            <button id="switchClassBtn" class="ghost">Сменить класс</button>
+            <button id="myProfileBtn" class="profile-avatar" title="Мой профиль">🙂</button>
+          </div>
+        </header>
+
+        <section class="chat-box animated-panel">
+          <div id="chatList" class="chat-list"></div>
+          <form id="messageForm" class="message-form">
+            <input name="text" maxlength="500" placeholder="Напишите сообщение одноклассникам..." required />
+            <button type="submit">Отправить</button>
+          </form>
+        </section>
+
+        <section class="classmates-box animated-panel" id="classmatesBox">
+          <h3>Одноклассники</h3>
+          <div id="classmates" class="classmates"></div>
+        </section>
+      </main>
+    </div>
+
+    <div id="myProfileModal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h3>Мой профиль</h3>
+          <button class="ghost small" data-close="myProfileModal">✕</button>
+        </div>
+        <div id="myProfileContent"></div>
+        <form id="changeNameForm" class="form-inline">
+          <input name="name" placeholder="Новое имя" maxlength="40" required />
+          <button>Сохранить имя</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="userProfileModal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h3>Профиль пользователя</h3>
+          <button class="ghost small" data-close="userProfileModal">✕</button>
+        </div>
+        <div id="userProfileContent"></div>
+      </div>
+    </div>
+
+    <script src="/social/script.js"></script>
+  </body>
+</html>
