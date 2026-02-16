@@ -7,54 +7,70 @@
     <link rel="stylesheet" href="/social/styles.css" />
   </head>
   <body>
-    <main class="app">
-      <h1>Class Social</h1>
-      <p class="subtitle">Соцсеть для одноклассников</p>
-
-      <section class="card" id="authCard">
-        <div class="tabs">
-          <button id="showLogin" class="active">Вход</button>
-          <button id="showRegister">Регистрация</button>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="logo">CS</div>
+          <div>
+            <h1>Class Social</h1>
+            <p>Telegram-style для класса</p>
+          </div>
         </div>
 
-        <form id="loginForm" class="form">
-          <input name="username" placeholder="Username" required />
-          <input name="password" placeholder="Пароль" type="password" required />
-          <button type="submit">Войти</button>
-        </form>
+        <div id="authCard" class="panel">
+          <div class="tabs">
+            <button id="showLogin" class="active">Вход</button>
+            <button id="showRegister">Регистрация</button>
+          </div>
 
-        <form id="registerForm" class="form hidden">
-          <input name="name" placeholder="Имя" required />
-          <input name="username" placeholder="Username" required />
-          <input name="password" placeholder="Пароль" type="password" required />
-          <input name="classCode" placeholder="Код класса (5 цифр)" pattern="\d{5}" required />
-          <button type="submit">Зарегистрироваться</button>
-        </form>
-
-        <p id="authMessage" class="message"></p>
-      </section>
-
-      <section class="hidden" id="socialArea">
-        <section class="card" id="profileCard">
-          <h2>Профиль</h2>
-          <div id="profile"></div>
-        </section>
-
-        <section class="card">
-          <h2>Классный чат</h2>
-          <form id="messageForm" class="form-inline">
-            <input name="text" placeholder="Напиши сообщение классу..." maxlength="500" required />
-            <button>Отправить</button>
+          <form id="loginForm" class="form">
+            <input name="username" placeholder="Username" required />
+            <input name="password" type="password" placeholder="Пароль" required />
+            <button type="submit">Войти</button>
           </form>
+
+          <form id="registerForm" class="form hidden">
+            <input name="name" placeholder="Имя" required />
+            <input name="username" placeholder="Username" required />
+            <input name="password" type="password" placeholder="Пароль" required />
+            <button type="submit">Зарегистрироваться</button>
+          </form>
+
+          <p id="authMessage" class="message"></p>
+        </div>
+
+        <div id="classSelector" class="panel hidden">
+          <h3>Выбор класса</h3>
+          <p class="soft">После входа выбери класс и введи пароль класса.</p>
+          <div id="classList" class="class-list"></div>
+        </div>
+      </aside>
+
+      <main class="chat-area hidden" id="socialArea">
+        <header class="chat-header">
+          <div>
+            <h2 id="activeClassTitle">Класс</h2>
+            <p id="activeClassHint">Сообщения вашего класса</p>
+          </div>
+          <button id="switchClassBtn" class="ghost">Сменить класс</button>
+        </header>
+
+        <section class="chat-box">
           <div id="chatList" class="chat-list"></div>
+          <form id="messageForm" class="message-form">
+            <input name="text" maxlength="500" placeholder="Напишите сообщение одноклассникам..." required />
+            <button type="submit">Отправить</button>
+          </form>
         </section>
 
-        <section class="card">
-          <h2>Одноклассники</h2>
+        <section class="profile-box" id="profileCard">
+          <h3>Профиль</h3>
+          <div id="profile"></div>
+          <h3>Одноклассники</h3>
           <div id="classmates" class="classmates"></div>
         </section>
-      </section>
-    </main>
+      </main>
+    </div>
 
     <script src="/social/script.js"></script>
   </body>

@@ -1,9 +1,14 @@
 :root {
-  --bg: #0f172a;
-  --card: #111827;
-  --text: #e5e7eb;
-  --muted: #9ca3af;
-  --accent: #2563eb;
+  --bg: #0b1018;
+  --sidebar: #111a28;
+  --panel: #172233;
+  --panel-soft: #1b2a3f;
+  --text: #e6eefc;
+  --muted: #91a4c6;
+  --accent: #2aabee;
+  --accent-2: #1c9bd8;
+  --danger: #ef476f;
+  --line: #26364f;
 }
 
 * {
@@ -12,51 +17,86 @@
 
 body {
   margin: 0;
-  font-family: Inter, system-ui, sans-serif;
-  background: linear-gradient(180deg, #0b1220, #111827);
+  font-family: Inter, Segoe UI, system-ui, sans-serif;
+  background: radial-gradient(circle at top, #122238, #0b1018 45%);
   color: var(--text);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
   min-height: 100vh;
 }
 
-.app {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 32px 16px;
+.sidebar {
+  border-right: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--sidebar), #0f1724);
+  padding: 18px;
 }
 
-.subtitle {
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--accent), #4fd5ff);
+  color: #062033;
+  font-weight: 800;
+}
+
+.brand h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.brand p {
+  margin: 2px 0 0;
   color: var(--muted);
-  margin-top: -8px;
+  font-size: 13px;
 }
 
-.card {
-  background: rgba(17, 24, 39, 0.9);
-  border: 1px solid #1f2937;
-  border-radius: 18px;
-  padding: 16px;
-  margin-top: 14px;
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 12px;
 }
 
 .tabs {
   display: flex;
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 button {
   border: 0;
   border-radius: 12px;
-  background: #1f2937;
+  background: #213148;
   color: var(--text);
-  padding: 10px 14px;
+  padding: 10px 12px;
   cursor: pointer;
 }
 
 button.active,
 .form button,
-.form-inline button,
+.message-form button,
 .like-btn {
-  background: var(--accent);
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  color: white;
+}
+
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--line);
 }
 
 .form {
@@ -64,38 +104,146 @@ button.active,
   gap: 10px;
 }
 
-.form-inline {
+input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0f1b2c;
+  color: var(--text);
+  padding: 10px;
+}
+
+.message,
+.soft {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.class-list {
+  display: grid;
+  gap: 10px;
+}
+
+.class-item {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.class-item h4 {
+  margin: 0 0 8px;
+}
+
+.class-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-area {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 1fr 330px;
+  gap: 14px;
+  padding: 16px;
+}
+
+.chat-header {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+
+.chat-header h2 {
+  margin: 0;
+}
+
+.chat-header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.chat-box,
+.profile-box {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.chat-list {
+  height: calc(100vh - 250px);
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.chat-item {
+  background: #122031;
+  border: 1px solid #243852;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.chat-meta {
+  font-size: 12px;
+  color: #9db8dd;
+  margin-bottom: 5px;
+}
+
+.chat-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.message-form {
+  margin-top: 10px;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
 }
 
-input {
-  background: #0b1220;
-  color: var(--text);
-  border: 1px solid #334155;
-  border-radius: 10px;
+.profile-box h3 {
+  margin: 4px 0 10px;
+}
+
+.classmates {
+  display: grid;
+  gap: 8px;
+}
+
+.classmate {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: #122031;
+  border: 1px solid #243852;
+  border-radius: 12px;
   padding: 10px;
 }
 
-.hidden {
-  display: none;
-}
-
-.message {
-  min-height: 22px;
-  color: #93c5fd;
+.like-btn.liked {
+  background: linear-gradient(180deg, #f14f7d, #d93463);
 }
 
 .badge {
   display: inline-block;
   padding: 4px 10px;
   border-radius: 999px;
+  font-size: 12px;
   font-weight: 700;
 }
 
 .badge.default {
-  background: #374151;
+  background: #344760;
 }
 
 .badge.diamond {
@@ -118,50 +266,20 @@ input {
   color: #111827;
 }
 
-.chat-list {
-  margin-top: 12px;
-  display: grid;
-  gap: 10px;
+.hidden {
+  display: none;
 }
 
-.chat-item {
-  background: #0b1220;
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: 10px;
-}
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
 
-.chat-meta {
-  color: #93c5fd;
-  font-size: 13px;
-  margin-bottom: 5px;
-}
+  .chat-area {
+    grid-template-columns: 1fr;
+  }
 
-.chat-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.classmates {
-  display: grid;
-  gap: 8px;
-}
-
-.classmate {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  background: #0b1220;
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: 10px;
-}
-
-.like-btn {
-  border-radius: 10px;
-}
-
-.like-btn.liked {
-  background: #db2777;
+  .chat-list {
+    height: 360px;
+  }
 }
