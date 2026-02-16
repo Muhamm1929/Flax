@@ -5,7 +5,6 @@ const authCard = document.getElementById('authCard');
 const classSelector = document.getElementById('classSelector');
 const classList = document.getElementById('classList');
 const socialArea = document.getElementById('socialArea');
-const profile = document.getElementById('profile');
 const showLogin = document.getElementById('showLogin');
 const showRegister = document.getElementById('showRegister');
 const chatList = document.getElementById('chatList');
@@ -14,6 +13,14 @@ const classmatesRoot = document.getElementById('classmates');
 const activeClassTitle = document.getElementById('activeClassTitle');
 const activeClassHint = document.getElementById('activeClassHint');
 const switchClassBtn = document.getElementById('switchClassBtn');
+const myProfileBtn = document.getElementById('myProfileBtn');
+const myProfileModal = document.getElementById('myProfileModal');
+const myProfileContent = document.getElementById('myProfileContent');
+const userProfileModal = document.getElementById('userProfileModal');
+const userProfileContent = document.getElementById('userProfileContent');
+const changeNameForm = document.getElementById('changeNameForm');
+
+let meCache = null;
 
 function setAuthMode(mode) {
   authCard.classList.toggle('register-mode', mode === 'register');
@@ -45,6 +52,23 @@ function clearViewToAuth() {
   socialArea.classList.add('hidden');
 }
 
+function closeModals() {
+  myProfileModal.classList.add('hidden');
+  userProfileModal.classList.add('hidden');
+}
+
+document.querySelectorAll('[data-close]').forEach((btn) => {
+  btn.addEventListener('click', closeModals);
+});
+
+myProfileModal.addEventListener('click', (e) => {
+  if (e.target === myProfileModal) closeModals();
+});
+
+userProfileModal.addEventListener('click', (e) => {
+  if (e.target === userProfileModal) closeModals();
+});
+
 async function api(url, options = {}) {
   const headers = {
     ...(options.headers || {}),
@@ -53,6 +77,23 @@ async function api(url, options = {}) {
   const res = await fetch(url, { ...options, headers });
   const data = await res.json().catch(() => ({}));
   return { ok: res.ok, data, status: res.status };
+}
+
+function renderMyProfile(data) {
+  myProfileContent.innerHTML = `
+    <p><b>Имя:</b> ${data.name}</p>
+    <p><b>Username:</b> @${data.username}</p>
+    <p><b>ID:</b> ${data.id}</p>
+    <p><b>Статус:</b> <span class="badge ${data.role.design}">${data.role.label}</span></p>
+    <p><b>Лайки:</b> ${data.likes}</p>
+    <p><b>Сообщения:</b> ${data.messages}</p>
+    <button id="logoutBtn">Выйти</button>
+  `;
+
+  document.getElementById('logoutBtn').onclick = () => {
+    localStorage.removeItem('token');
+    location.reload();
+  };
 }
 
 registerForm.addEventListener('submit', async (e) => {
@@ -102,21 +143,8 @@ async function loadProfile() {
     return null;
   }
 
-  profile.innerHTML = `
-    <p><b>Имя:</b> ${data.name}</p>
-    <p><b>Username:</b> @${data.username}</p>
-    <p><b>ID:</b> ${data.id}</p>
-    <p><b>Статус:</b> <span class="badge ${data.role.design}">${data.role.label}</span></p>
-    <p><b>Лайки:</b> ${data.likes}</p>
-    <p><b>Сообщения:</b> ${data.messages}</p>
-    <button id="logoutBtn">Выйти</button>
-  `;
-
-  document.getElementById('logoutBtn').onclick = () => {
-    localStorage.removeItem('token');
-    location.reload();
-  };
-
+  meCache = data;
+  renderMyProfile(data);
   return data;
 }
 
@@ -177,6 +205,25 @@ window.selectClass = async (classId) => {
   await bootSocial();
 };
 
+window.openUserProfile = async (userId) => {
+  const { ok, data } = await api(`/api/users/${userId}/profile`);
+  if (!ok) {
+    msg.textContent = data.error || 'Не удалось открыть профиль';
+    return;
+  }
+
+  userProfileContent.innerHTML = `
+    <p><b>Имя:</b> ${data.name}</p>
+    <p><b>Username:</b> @${data.username}</p>
+    <p><b>ID:</b> ${data.id}</p>
+    <p><b>Статус:</b> <span class="badge ${data.role.design}">${data.role.label}</span></p>
+    <p><b>Лайки:</b> ${data.likes}</p>
+    <p><b>Сообщения:</b> ${data.messages}</p>
+  `;
+
+  userProfileModal.classList.remove('hidden');
+};
+
 async function loadMessages() {
   const { ok, data } = await api('/api/messages');
   if (!ok) return;
@@ -186,7 +233,7 @@ async function loadMessages() {
         .map(
           (item) => `
       <article class="chat-item">
-        <div class="chat-meta">${item.author.name} (@${item.author.username}) · ${new Date(item.createdAt).toLocaleString()}</div>
+        <div class="chat-meta"><a href="#" class="author-link" onclick="openUserProfile('${item.author.id}'); return false;">${item.author.name} (@${item.author.username})</a> · ${new Date(item.createdAt).toLocaleString()}</div>
         <div>${item.text}</div>
         <div class="chat-actions">
           <button class="like-btn ${item.likedByMe ? 'liked' : ''}" onclick="toggleMessageLike('${item.id}')">❤️ ${item.likes}</button>
@@ -212,7 +259,7 @@ async function loadClassmates() {
       (u) => `
       <div class="classmate">
         <div>
-          <b>${u.name}</b> (@${u.username})<br/>
+          <a href="#" class="author-link" onclick="openUserProfile('${u.id}'); return false;"><b>${u.name}</b> (@${u.username})</a><br/>
           Лайков: ${u.likes}
         </div>
         <button class="like-btn ${u.likedByMe ? 'liked' : ''}" onclick="toggleUserLike('${u.id}')">${u.likedByMe ? '💔 Убрать' : '❤️ Лайк'}</button>
@@ -252,10 +299,35 @@ messageForm.addEventListener('submit', async (e) => {
   await Promise.all([loadMessages(), loadProfile()]);
 });
 
+changeNameForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = String(new FormData(changeNameForm).get('name') || '').trim();
+  if (!name) return;
+
+  const { ok, data } = await api('/api/me', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  });
+
+  if (!ok) {
+    msg.textContent = data.error || 'Не удалось поменять имя';
+    return;
+  }
+
+  changeNameForm.reset();
+  await Promise.all([loadProfile(), loadMessages(), loadClassmates()]);
+});
+
 switchClassBtn.addEventListener('click', async () => {
   socialArea.classList.add('hidden');
   classSelector.classList.remove('hidden');
   await loadClassesForSelection();
+});
+
+myProfileBtn.addEventListener('click', () => {
+  if (!meCache) return;
+  myProfileModal.classList.remove('hidden');
 });
 
 async function bootSocial() {
@@ -278,6 +350,8 @@ async function bootSocial() {
 
   await Promise.all([loadMessages(), loadClassmates()]);
 }
+
+setAuthMode('login');
 
 if (token()) {
   bootSocial();

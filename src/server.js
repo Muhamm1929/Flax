@@ -344,6 +344,39 @@ async function handleApi(req, res, origin) {
     );
   }
 
+  if (req.method === 'PATCH' && reqPath === '/api/me') {
+    const { name } = await parseBody(req);
+    if (!name || !String(name).trim()) return json(res, 400, { error: 'name is required' }, origin);
+    user.name = String(name).trim().slice(0, 40);
+    saveStore(store);
+    return json(res, 200, { message: 'Name updated', name: user.name }, origin);
+  }
+
+  if (req.method === 'GET' && reqPath.match(/^\/api\/users\/[^/]+\/profile$/)) {
+    const targetId = reqPath.split('/')[3];
+    const target = store.users.find((u) => u.id === targetId);
+    if (!target) return json(res, 404, { error: 'User not found' }, origin);
+
+    ensureActiveClass(user, store);
+    if (!user.activeClassId || !target.classIds.includes(user.activeClassId)) {
+      return json(res, 403, { error: 'Profile is not available outside your active class' }, origin);
+    }
+
+    return json(
+      res,
+      200,
+      {
+        id: target.id,
+        name: target.name,
+        username: target.username,
+        likes: (target.likedBy || []).length,
+        messages: target.messages || 0,
+        role: roleForUser(target, store)
+      },
+      origin
+    );
+  }
+
   if (req.method === 'GET' && reqPath === '/api/classes') {
     const enabledClasses = store.classes
       .filter((c) => c.enabled)

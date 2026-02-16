@@ -58,7 +58,10 @@
             <h2 id="activeClassTitle">Класс</h2>
             <p id="activeClassHint">Сообщения вашего класса</p>
           </div>
-          <button id="switchClassBtn" class="ghost">Сменить класс</button>
+          <div class="header-actions">
+            <button id="switchClassBtn" class="ghost">Сменить класс</button>
+            <button id="myProfileBtn" class="profile-avatar" title="Мой профиль">🙂</button>
+          </div>
         </header>
 
         <section class="chat-box animated-panel">
@@ -69,13 +72,35 @@
           </form>
         </section>
 
-        <section class="profile-box animated-panel" id="profileCard">
-          <h3>Профиль</h3>
-          <div id="profile"></div>
+        <section class="classmates-box animated-panel" id="classmatesBox">
           <h3>Одноклассники</h3>
           <div id="classmates" class="classmates"></div>
         </section>
       </main>
+    </div>
+
+    <div id="myProfileModal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h3>Мой профиль</h3>
+          <button class="ghost small" data-close="myProfileModal">✕</button>
+        </div>
+        <div id="myProfileContent"></div>
+        <form id="changeNameForm" class="form-inline">
+          <input name="name" placeholder="Новое имя" maxlength="40" required />
+          <button>Сохранить имя</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="userProfileModal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h3>Профиль пользователя</h3>
+          <button class="ghost small" data-close="userProfileModal">✕</button>
+        </div>
+        <div id="userProfileContent"></div>
+      </div>
     </div>
 
     <script src="/social/script.js"></script>
