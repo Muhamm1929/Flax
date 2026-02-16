@@ -1,0 +1,35 @@
+{
+  "users": [
+    {
+      "id": "6704077",
+      "name": "Ivan",
+      "username": "ivan",
+      "passwordHash": "378db9c02dc7240ff6ee6df9e4078ddb:7d2184c0f8613eea704d73b5c0251720c675b29add8ddec6b4702454b5810f37f9da11e0a290877fe7103ee3ea57d28fdf862bf29bb076ab7ddf2a38833bd6a3",
+      "classIds": [
+        "d5bce71a-6878-4cf1-8562-dbae2e5edb5b"
+      ],
+      "likes": 0,
+      "friends": 0,
+      "messages": 0,
+      "role": "USER"
+    }
+  ],
+  "classes": [
+    {
+      "id": "d5bce71a-6878-4cf1-8562-dbae2e5edb5b",
+      "name": "Class A",
+      "code": "11111",
+      "enabled": true
+    }
+  ],
+  "sessions": [
+    {
+      "token": "e9a739a8eb6d87b87e5eedb72d2e35494c51f23f3437e05f",
+      "userId": "6704077",
+      "createdAt": "2026-02-16T15:31:30.588Z"
+    }
+  ],
+  "loginPodiumOrder": [
+    "6704077"
+  ]
+}

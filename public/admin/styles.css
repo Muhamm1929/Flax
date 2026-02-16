@@ -1,0 +1,33 @@
+body {
+  margin: 0;
+  background: #0f172a;
+  color: #e5e7eb;
+  font-family: Inter, system-ui, sans-serif;
+}
+.app { max-width: 860px; margin: 0 auto; padding: 20px; }
+.card {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.form { display: flex; gap: 8px; flex-wrap: wrap; }
+input, select, button {
+  background: #0b1220;
+  color: #e5e7eb;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+button { background: #2563eb; border: 0; cursor: pointer; }
+.hidden { display: none; }
+.user, .class-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid #1f2937;
+  padding: 10px 0;
+}
+.message { color: #fca5a5; }

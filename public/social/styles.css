@@ -1,0 +1,70 @@
+:root {
+  --bg: #0f172a;
+  --card: #111827;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --accent: #2563eb;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  background: linear-gradient(180deg, #0b1220, #111827);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 32px 16px;
+}
+
+.subtitle { color: var(--muted); margin-top: -8px; }
+
+.card {
+  background: rgba(17, 24, 39, 0.9);
+  border: 1px solid #1f2937;
+  border-radius: 18px;
+  padding: 16px;
+  margin-top: 14px;
+}
+
+.tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+button {
+  border: 0;
+  border-radius: 12px;
+  background: #1f2937;
+  color: var(--text);
+  padding: 10px 14px;
+  cursor: pointer;
+}
+button.active,
+.form button {
+  background: var(--accent);
+}
+
+.form { display: grid; gap: 10px; }
+input {
+  background: #0b1220;
+  color: var(--text);
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.hidden { display: none; }
+.message { min-height: 22px; color: #93c5fd; }
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.badge.default { background: #374151; }
+.badge.diamond { background: linear-gradient(90deg, #67e8f9, #a78bfa); color: #111827; }
+.badge.gold { background: linear-gradient(90deg, #f59e0b, #fde047); color: #111827; }
+.badge.silver { background: linear-gradient(90deg, #9ca3af, #e5e7eb); color: #111827; }
+.badge.bronze { background: linear-gradient(90deg, #b45309, #f59e0b); color: #111827; }
