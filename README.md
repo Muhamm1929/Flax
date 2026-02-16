@@ -63,3 +63,8 @@ ADMIN_ORIGIN=https://your-admin-domain.vercel.app
 2. В обоих проектах задайте одинаковые ENV.
 3. Для CORS проставьте `SOCIAL_ORIGIN` и `ADMIN_ORIGIN`.
 4. Назначьте разные кастомные домены на проекты.
+
+## Важно для Vercel
+
+- Исправлено падение `FUNCTION_INVOCATION_FAILED`: хранилище теперь использует `/tmp/flax-store.json` в среде Vercel, чтобы функция не падала из-за read-only файловой системы.
+- Учтите, что `/tmp` на serverless не постоянный storage. Для продакшена лучше вынести данные в БД (Supabase/Neon/PlanetScale и т.д.).

@@ -1,7 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const storePath = path.join(__dirname, '..', 'data', 'store.json');
+const isVercel = Boolean(process.env.VERCEL);
+const defaultStorePath = path.join(__dirname, '..', 'data', 'store.json');
+const vercelStorePath = '/tmp/flax-store.json';
+const storePath = isVercel ? vercelStorePath : defaultStorePath;
 
 const baseState = {
   users: [],
@@ -12,6 +15,8 @@ const baseState = {
     adminPasswordHash: ''
   }
 };
+
+let memoryStore = JSON.parse(JSON.stringify(baseState));
 
 function mergeWithBase(value, base) {
   if (Array.isArray(base)) {
@@ -32,25 +37,57 @@ function mergeWithBase(value, base) {
   return value === undefined ? base : value;
 }
 
+function tryReadJson(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
 function ensureStore() {
-  if (!fs.existsSync(storePath)) {
-    fs.writeFileSync(storePath, JSON.stringify(baseState, null, 2));
+  const existing = tryReadJson(storePath);
+  if (existing) {
+    memoryStore = mergeWithBase(existing, baseState);
+    return;
+  }
+
+  const bundled = tryReadJson(defaultStorePath);
+  memoryStore = mergeWithBase(bundled || baseState, baseState);
+
+  try {
+    fs.writeFileSync(storePath, JSON.stringify(memoryStore, null, 2));
+  } catch {
+    // read-only fs fallback (shouldn't happen on /tmp, but keep safe)
   }
 }
 
 function loadStore() {
   ensureStore();
-  const raw = fs.readFileSync(storePath, 'utf-8');
-  const parsed = JSON.parse(raw);
-  return mergeWithBase(parsed, baseState);
+
+  const fromDisk = tryReadJson(storePath);
+  if (fromDisk) {
+    memoryStore = mergeWithBase(fromDisk, baseState);
+    return memoryStore;
+  }
+
+  return mergeWithBase(memoryStore, baseState);
 }
 
 function saveStore(state) {
-  fs.writeFileSync(storePath, JSON.stringify(state, null, 2));
+  memoryStore = mergeWithBase(state, baseState);
+
+  try {
+    fs.writeFileSync(storePath, JSON.stringify(memoryStore, null, 2));
+  } catch {
+    // keep in-memory state when filesystem write is unavailable
+  }
 }
 
 module.exports = {
   loadStore,
   saveStore,
-  baseState
+  baseState,
+  storePath
 };

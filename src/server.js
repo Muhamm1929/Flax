@@ -309,7 +309,7 @@ async function handleApi(req, res, origin) {
   return false;
 }
 
-const server = http.createServer(async (req, res) => {
+async function requestHandler(req, res) {
   const origin = setCors(req);
 
   if (req.method === 'OPTIONS') {
@@ -345,10 +345,15 @@ const server = http.createServer(async (req, res) => {
   } catch (error) {
     json(res, 400, { error: error.message || 'Bad request' }, origin);
   }
-});
+}
 
 ensureBootstrapState();
 
-server.listen(PORT, () => {
-  console.log(`Server started on http://localhost:${PORT}`);
-});
+module.exports = requestHandler;
+
+if (require.main === module) {
+  const server = http.createServer(requestHandler);
+  server.listen(PORT, () => {
+    console.log(`Server started on http://localhost:${PORT}`);
+  });
+}
